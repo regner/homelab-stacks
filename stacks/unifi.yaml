@@ -1,0 +1,84 @@
+version: "3.3"
+
+networks:
+  traefik_net:
+    external: true
+
+volumes:
+  data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/unifi/data"
+  log:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/unifi/log"
+  cert:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/unifi/cert"
+  init:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/unifi/init"
+
+services:
+  controller:
+    image: "jacobalberty/unifi:5.11.39"
+    environment:
+    - "RUNAS_UID0=false"
+    - "UNIFI_UID=1000"
+    - "UNIFI_GID=1000"
+    volumes:
+    - "data:/unifi/data"
+    - "log:/unifi/log"
+    - "cert:/unifi/cert"
+    - "init:/unifi/init.d"
+    networks:
+    - "traefik_net"
+    ports:
+    - "3478:3478/udp"
+    - "8443:8443"
+    - "8880:8880"
+    - "8843:8843"
+    deploy:
+      placement:
+        constraints:
+        - "node.role == manager"
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      # Web Admin
+      - "traefik.http.routers.unifi.service=unifi"
+      - "traefik.http.routers.unifi.rule=Host(`unifi.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.unifi.entrypoints=internal"
+      - "traefik.http.services.unifi.loadbalancer.server.port=8443"
+      - "traefik.http.services.unifi.loadbalancer.server.scheme=https"
+      # Inform
+      - "traefik.http.routers.unifiinform.service=unifiinform"
+      # Traefik docs are a bit lacking here, unsure how to get this to just be
+      # the default service for the router. As far as I know all communication is done
+      # to /inform anyways, so just match on that.
+      - "traefik.http.routers.unifiinform.rule=Path(`/inform`)"
+      - "traefik.http.routers.unifiinform.entrypoints=unifiinform"
+      - "traefik.http.services.unifiinform.loadbalancer.server.port=8080"
+  logs:
+    image: "bash"
+    depends_on:
+    - "controller"
+    command: "bash -c 'tail -f /unifi/log/*.log'"
+    volumes:
+    - "log:/unifi/log"
+    deploy:
+      restart_policy:
+        condition: "on-failure"

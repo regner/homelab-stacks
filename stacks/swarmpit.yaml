@@ -1,0 +1,102 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+volumes:
+  db-data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/swarmpit/couchdb"
+  influx-data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/swarmpit/influx"
+
+
+services:
+  app:
+    image: "swarmpit/swarmpit:1.7"
+    environment:
+    - "SWARMPIT_DB=http://db:5984"
+    - "SWARMPIT_INFLUXDB=http://influxdb:8086"
+    volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "1024M"
+        reservations:
+          cpus: "0.25"
+          memory: "512M"
+      placement:
+        constraints:
+          - "node.role == manager"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.swarmpit.rule=Host(`swarmpit.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.swarmpit.entrypoints=internal"
+      - "traefik.http.services.swarmpit.loadbalancer.server.port=8080"
+
+  db:
+    image: "couchdb:2.3.0"
+    volumes:
+    - "db-data:/opt/couchdb/data"
+    networks:
+    - "net"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: "256M"
+        reservations:
+          cpus: "0.15"
+          memory: "128M"
+
+  influxdb:
+    image: "influxdb:1.7"
+    volumes:
+    - "influx-data:/var/lib/influxdb"
+    networks:
+    - "net"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: "256M"
+        reservations:
+          cpus: "0.15"
+          memory: "128M"
+
+  agent:
+    image: "swarmpit/agent:2.1"
+    environment:
+    - "DOCKER_API_VERSION=1.35"
+    volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+    - "net"
+    deploy:
+      mode: "global"
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: "64M"
+        reservations:
+          cpus: "0.05"
+          memory: "32M"
+      labels:
+        swarmpit.agent: "true"

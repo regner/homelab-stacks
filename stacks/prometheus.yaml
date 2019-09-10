@@ -1,0 +1,193 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+configs:
+  loki_config:
+    external: true
+
+volumes:
+  prometheus_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/prometheus/config"
+  prometheus_data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/prometheus/data"
+  grafana_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/grafana/config"
+  grafana_data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/grafana/data"
+  alertmanager_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/alertmanager/config"
+  loki_data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/loki/data"
+
+secrets:
+  grafana_admin_password:
+    external: true
+
+services:
+  prometheus:
+    image: "prom/prometheus:v2.12.0"
+    volumes:
+    - "prometheus_config:/etc/prometheus"
+    - "prometheus_data:/prometheus"
+    command: >
+      --config.file=/etc/prometheus/prometheus.yaml
+      --storage.tsdb.path=/prometheus
+      --web.console.libraries=/usr/share/prometheus/console_libraries
+      --web.console.templates=/usr/share/prometheus/consoles
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.prometheus.entrypoints=internal"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  alertmanager:
+    image: "prom/alertmanager:v0.19.0"
+    volumes:
+    - "alertmanager_config:/etc/alertmanager/"
+    networks:
+    - "net"
+    - "traefik_net"
+    command: >
+      --config.file=/etc/alertmanager/alertmanager.yaml
+      --storage.path=/alertmanager
+    deploy:
+      placement:
+        constraints:
+          - "node.role == manager"
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.alertmanager.entrypoints=internal"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+
+  grafana:
+    image: "grafana/grafana:6.3.5"
+    environment:
+    - "GF_SERVER_ROOT_URL=https://grafana${DNS_EXTERNAL}"
+    - "GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-worldmap-panel,grafana-piechart-panel"
+    - "GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password"
+    depends_on:
+    - "prometheus"
+    volumes:
+    - "grafana_data:/var/lib/grafana"
+    - "grafana_config:/etc/grafana/provisioning"
+    networks:
+    - "net"
+    - "traefik_net"
+    user: "1000"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.grafana.service=grafana"
+      - "traefik.http.routers.grafana.rule=Host(`grafana${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=httpchallenge"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      # Emergency backup for when I cannot access normally
+      - "traefik.http.routers.grafanainternal.service=grafanainternal"
+      - "traefik.http.routers.grafanainternal.rule=Host(`grafana.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.grafanainternal.entrypoints=internal"
+      - "traefik.http.services.grafanainternal.loadbalancer.server.port=3000"
+    secrets:
+    - source: grafana_admin_password
+      uid: "1000"
+      gid: "1000"
+
+  node-exporter:
+    image: "prom/node-exporter:v0.18.1"
+    volumes:
+    - "/proc:/host/proc:ro"
+    - "/sys:/host/sys:ro"
+    - "/:/rootfs:ro"
+    command: >
+      --path.procfs=/host/proc
+      --path.sysfs=/host/sys
+      --collector.filesystem.ignored-mount-points
+      "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    networks:
+    - "net"
+    deploy:
+      mode: "global"
+      restart_policy:
+        condition: "on-failure"
+
+  cadvisor:
+    image: "google/cadvisor:v0.33.0"
+    command: "--docker_only"
+    volumes:
+    - "/:/rootfs:ro"
+    - "/var/run:/var/run:rw"
+    - "/sys:/sys:ro"
+    - "/var/lib/docker/:/var/lib/docker:ro"
+    networks:
+    - "net"
+    deploy:
+      mode: "global"
+      restart_policy:
+        condition: "on-failure"
+
+  loki:
+    image: "grafana/loki:v0.3.0"
+    command: "-config.file=/etc/loki/loki-config.yaml"
+    volumes:
+    - "loki_data:/data/loki"
+    networks:
+    - "net"
+    - "traefik_net"
+    ports:
+    - "3100:3100"
+    configs:
+    - source: "loki_config"
+      target: "/etc/loki/loki-config.yaml"
+    deploy:
+      mode: "replicated"
+      replicas: 1
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.loki.rule=Host(`loki.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.loki.entrypoints=internal"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"

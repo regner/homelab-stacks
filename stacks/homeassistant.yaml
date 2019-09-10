@@ -1,0 +1,36 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+volumes:
+  homeassistant_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/homeassistant/config"
+
+services:
+  app:
+    image: "homeassistant/home-assistant:0.98.3"
+    environment:
+    - "TZ=America/Vancouver"
+    volumes:
+    - "homeassistant_config:/config"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.homeassistant.rule=Host(`homeassistant.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.homeassistant.entrypoints=internal"
+      - "traefik.http.services.homeassistant.loadbalancer.server.port=8123"

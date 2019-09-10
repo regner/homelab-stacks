@@ -1,0 +1,62 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+
+volumes:
+  traefik_certs:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/traefik/certs"
+
+services:
+  app:
+    image: "traefik:v2.0.0-rc2"
+    # Add this to enable debug: --log.level="DEBUG"
+
+    # Trick here: The Traefik dashboard binds to port 8080 but UniFi
+    # inform is easiest on that port. So bind Traefik here to 8090
+    # and use Docker to forward 8080 -> 8090
+    command: >
+      --api
+      --accesslog
+      --global.sendanonymoususage=false
+      --serverstransport.insecureskipverify=true
+      --metrics.prometheus=true
+      --providers.docker
+      --providers.docker.swarmMode=true
+      --providers.docker.exposedByDefault=false
+      --entrypoints.web.address=:80
+      --entrypoints.websecure.address=:443
+      --entrypoints.internal.address=:8000
+      --entrypoints.unifiinform.address=:8090
+      --certificatesresolvers.httpchallenge.acme.httpchallenge=true
+      --certificatesresolvers.httpchallenge.acme.httpchallenge.entrypoint=web
+      --certificatesresolvers.httpchallenge.acme.email=${TRAEFIK_ACME_EMAIL}
+      --certificatesresolvers.httpchallenge.acme.storage=/letsencrypt/acme.json
+    volumes:
+    - "traefik_certs:/letsencrypt"
+    - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    ports:
+    - "80:80"
+    - "443:443"
+    - "${TRAEFIK_INTERNAL_PORT}:8000"
+    - "8080:8090"
+    networks:
+    - "net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      placement:
+        constraints:
+        - "node.role == manager"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.traefik.entrypoints=internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"

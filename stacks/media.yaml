@@ -1,0 +1,213 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+volumes:
+  transmission_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/transmission/config"
+  transmission_downloads:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/transmission/downloads"
+  jackett_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/jackett/config"
+  sonarr_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/sonarr/config"
+  radarr_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/radarr/config"
+  plex_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/plex/config"
+  plex_logs:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/plex/config/Library/Application Support/Plex Media Server/Logs"
+  tautulli_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/tautulli/config"
+  media_tv:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/video/tv"
+  media_movies:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/video/movies"
+  tmp:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/tmp"
+
+services:
+  transmission:
+    image: "linuxserver/transmission:2.94-r1-ls26"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+      - "transmission_config:/config"
+      - "transmission_downloads:/downloads"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.transmission.rule=Host(`transmission.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.transmission.entrypoints=internal"
+      - "traefik.http.services.transmission.loadbalancer.server.port=9091"
+
+  jackett:
+    image: "linuxserver/jackett:v0.11.668-ls38"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+    - "jackett_config:/config"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.jackett.rule=Host(`jackett.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.jackett.entrypoints=internal"
+      - "traefik.http.services.jackett.loadbalancer.server.port=9117"
+
+  sonarr:
+    image: "linuxserver/sonarr:3.0.3.619-ls131"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+    - "sonarr_config:/config"
+    - "transmission_downloads:/downloads"
+    - "media_tv:/tv"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.sonarr.rule=Host(`sonarr.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.sonarr.entrypoints=internal"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+
+  radarr:
+    image: "linuxserver/radarr:0.2.0.1438-ls32"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+    - "radarr_config:/config"
+    - "transmission_downloads:/downloads"
+    - "media_movies:/movies"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.radarr.rule=Host(`radarr.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.radarr.entrypoints=internal"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+
+  plex:
+    image: "plexinc/pms-docker:1.16.5.1554-1e5ff713d"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    - "ADVERTISE_IP=http://plex.${DNS_EXTERNAL}:8000/"
+    volumes:
+    - "plex_config:/config"
+    - "media_tv:/data/tv"
+    - "media_movies:/data/movies"
+    - "tmp:/transcode"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.plex.rule=Host(`plex.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.plex.entrypoints=internal"
+      - "traefik.http.services.plex.loadbalancer.server.port=32400"
+
+  tautulli:
+    image: "linuxserver/tautulli:v2.1.34-ls25"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+    - "tautulli_config:/config"
+    - "plex_logs:/logs:ro"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.tautulli.rule=Host(`tautulli.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.tautulli.entrypoints=internal"
+      - "traefik.http.services.tautulli.loadbalancer.server.port=8181"

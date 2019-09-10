@@ -1,0 +1,34 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+volumes:
+  nodered_data:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/nodered/data"
+
+services:
+  app:
+    image: "nodered/node-red-docker:0.20.8-v8"
+    volumes:
+      - "nodered_data:/data"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.nodered.rule=Host(`nodered.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.nodered.entrypoints=internal"
+      - "traefik.http.services.nodered.loadbalancer.server.port=1880"

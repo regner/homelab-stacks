@@ -1,0 +1,11 @@
+route:
+  receiver: "pushover"
+
+receivers:
+- name: "pushover"
+  pushover_configs:
+  - token: "<api token>"
+    user_key: "<user token>"
+    # Overrides the source URL in the push message to something that
+    # will actually work.
+    url: "http://alertmanager.<external dns>:8000/#/alerts?reciever=pushover"

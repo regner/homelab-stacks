@@ -1,0 +1,38 @@
+version: "3.3"
+
+networks:
+  net:
+    driver: "overlay"
+    attachable: true
+  traefik_net:
+    external: true
+
+volumes:
+  heimdall_config:
+    driver: "local"
+    driver_opts:
+      type: "none"
+      o: "bind"
+      device: "/data/app_data/heimdall/config"
+
+services:
+  app:
+    image: "linuxserver/heimdall:amd64-2.2.2-ls55"
+    environment:
+    - "PUID=1000"
+    - "PGID=1000"
+    - "TZ=America/Vancouver"
+    volumes:
+    - "heimdall_config:/config"
+    networks:
+    - "net"
+    - "traefik_net"
+    deploy:
+      restart_policy:
+        condition: "on-failure"
+      labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.heimdall.rule=Host(`heimdall.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.heimdall.entrypoints=internal"
+      - "traefik.http.services.heimdall.loadbalancer.server.port=80"
