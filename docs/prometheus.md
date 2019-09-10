@@ -1,6 +1,7 @@
 ---
-layout: default
-title: Prometheus
+layout: "default"
+title: "Prometheus"
+nav_order: 4
 ---
 
 ## Config
