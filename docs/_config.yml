@@ -4,3 +4,6 @@ url: "https://regnerba.com"
 baseurl: "/homelab-stacks"
 search_enabled: true
 permalink: pretty
+aux_links:
+  "GitHub":
+  - "https://github.com/regner/homelab-stack"
