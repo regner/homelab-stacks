@@ -1,5 +1,5 @@
 tile: "Homelab Stacks"
-theme: "just-the-docs"
+remote_theme: "pmarsceill/just-the-docs"
 baseurl: "/homelab-stacks"
 color_scheme: "dark"
 search_enabled: true
