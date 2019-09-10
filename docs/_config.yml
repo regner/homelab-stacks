@@ -1,5 +1,6 @@
 tile: "Homelab Stacks"
 remote_theme: "pmarsceill/just-the-docs"
+url: "https://regnerba.com"
 baseurl: "/homelab-stacks"
 search_enabled: true
 permalink: pretty
