@@ -1,4 +1,7 @@
-# Prometheus
+---
+layout: default
+title: Prometheus
+---
 
 ## Config
 
