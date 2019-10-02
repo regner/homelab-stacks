@@ -15,7 +15,7 @@ volumes:
 
 services:
   app:
-    image: "traefik:v2.0.0-rc2"
+    image: "traefik:v2.0.1"
     # Add this to enable debug: --log.level="DEBUG"
 
     # Trick here: The Traefik dashboard binds to port 8080 but UniFi
