@@ -17,7 +17,7 @@ volumes:
 
 services:
   app:
-    image: "linuxserver/heimdall:amd64-2.2.2-ls55"
+    image: "linuxserver/heimdall:amd64-2.2.2-ls59"
     environment:
     - "PUID=1000"
     - "PGID=1000"
