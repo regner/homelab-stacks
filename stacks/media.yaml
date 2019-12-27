@@ -172,9 +172,9 @@ services:
       labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_net"
-      - "traefik.http.routers.sonarr.rule=Host(`lazylibrarian.${DNS_EXTERNAL}`)"
-      - "traefik.http.routers.sonarr.entrypoints=internal"
-      - "traefik.http.services.sonarr.loadbalancer.server.port=5299"
+      - "traefik.http.routers.lazylibrarian.rule=Host(`lazylibrarian.${DNS_EXTERNAL}`)"
+      - "traefik.http.routers.lazylibrarian.entrypoints=internal"
+      - "traefik.http.services.lazylibrarian.loadbalancer.server.port=5299"
 
   radarr:
     image: "linuxserver/radarr:3.0.0.2393-ls37"
